@@ -1,0 +1,52 @@
+#!/usr/bin/env ruby
+
+require "bundler/setup"
+require "plagiat_detektor"
+require "thread/pool"
+require "optparse"
+
+# default value
+options = {threshold:0.6, procs: 4}
+
+OptionParser.new do |opts|
+  opts.banner = "Usage: #{$0} -s <directory1> -d <directory2> [-n <# of process>][-t <threshold>]"
+  opts.on("-s","--source DIRECTORY","mandatory DIRECTORY") do |s|
+    # TODO
+    # validate it
+    options[:source] = s
+  end
+  opts.on("-d","--destination DIRECTORY","mandatory DIRECTORY") do |d|
+    # TODO
+    # validate it
+    options[:destination] = d
+  end
+  opts.on("-t","--threshold THRESHOLD", "Threshold of similarity: default 0.6") do |t|
+    options[:threshold] = t.to_f
+  end
+  opts.on("-n","--number of parallel PROCESSES", "Number of parallel processes: default 4") do |n|
+    options[:procs] = n.to_i
+  end
+end.parse!
+
+
+threads = []
+threads << Thread.new { PlagiatDetektor::SearchFile.new(options[:source]).search }
+threads << Thread.new { PlagiatDetektor::SearchFile.new(options[:destination]).search }
+
+dir1files, dir2files = threads.map(&:join).map(&:value)
+
+combineAll = PlagiatDetektor::SearchFile::product(dir1files, dir2files)
+
+pool = Thread.pool(options[:procs])
+
+combineAll.each do |files|
+  pool.process do
+    f1 = PlagiatDetektor::clean_file(files[0])
+    f2 = PlagiatDetektor::clean_file(files[1])
+    # puts f1.inspect, f2.inspect
+    diff = PlagiatDetektor::Diff::SequenceMatcher.new(f1, f2)
+    puts "#{files[0]} and #{files[1]}: #{diff.ratio}" if diff.ratio >= options[:threshold]
+  end
+end
+
+pool.shutdown

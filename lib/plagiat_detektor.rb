@@ -1,6 +1,8 @@
 require "plagiat_detektor/version"
 require_relative "plagiat_detektor/diff"
 require_relative "plagiat_detektor/search_file"
+require_relative "plagiat_detektor/option_parser"
+
 module PlagiatDetektor
   # remove preprocessor and comments
   class << self
